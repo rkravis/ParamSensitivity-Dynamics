@@ -507,7 +507,11 @@ function show_top_participation_factors(sa::PSID.SmallSignalOutput, mode_idx::In
         cutoff = size(x)[1]
     end
     if plot_on
-        bar(x[1:cutoff,1], x[1:cutoff,2], xrotation=90,color=:grey, legend=false,ylabel="participation factor",size=(600,600))
+        bar(x[1:cutoff,1], x[1:cutoff,2], xrotation=90,color=:grey, legend=false,ylabel="participation factor",size=(600,600),xtickfont=font(9, "Computer Modern"), ytickfontsize=9)
+        # xticks!(collect(1:1:10).-0.5, [L"GFM\ angle", L"GFM\ inner"*"\n"*L"voltage\ error\ (d)", L"SM\ frequency", L"GFM\ inner"*"\n"*L"current\ error\ (d)", L"GFM\ frequency", L"GFM\ PLL\ angle", L"GFM\ inner"*"\n"*L"current\ error\ (q)", L"GFM\ inner"*"\n"*L"voltage\ error\ (q)", L"SM\ transient\ EMF\ (d)", L"GFM\ virtual"*"\n"*L"impedance\ voltage\ (d)"])
+
+        xticks!(collect(1:1:10).-0.5, ["GFM angle", "GFM inner"*"\n"*"voltage error (d)", "SM frequency", "GFM inner"*"\n"*"current error (d)", "GFM frequency", "GFM PLL angle", "GFM inner"*"\n"*"current error (q)", "GFM inner"*"\n"*"voltage error (q)", "SM transient EMF (d)", "GFM virtual"*"\n"*"impedance voltage (d)"])
+    ylabel!(L"\mathrm{Participation\ Factor}")
     end
 end
 
