@@ -465,18 +465,18 @@ function generate_A_v_D_eig_full_color(filepath::String, save_fig=false, xspan=(
     #xpts = range(xmin-0.5, xmax*1.05, 15)
     #p = plot(xpts, xpts, fillrange=ones(length(xpts))*maximum(x.stable_d)*1.08, fc=:grey, linealpha=0, alpha=0.3,primary=false,framestyle=:box,legend=:topleft)
     msw_val = 1.0
-    p = plot()
+    p = plot(legendfontsize=12)
     if !isempty(stb)
-        scatter!(stack(stb.stable,dims=1)[:,1], stack(stb.stable_d,dims=1)[:,1], color="green", label=L"\lambda_{A,max} < 0, \lambda_{D,max} < 0", msw=msw_val,framestyle=:box)
+        scatter!(stack(stb.stable,dims=1)[:,1], stack(stb.stable_d,dims=1)[:,1], color="green", label=L"\lambda_{A,max} \leq 0, \lambda_{D,max} \leq 0", msw=msw_val,framestyle=:box)
     end
     if !isempty(unstb)
         Plots.scatter!(stack(unstb.stable,dims=1)[:,1], stack(unstb.stable_d,dims=1)[:,1], color="orange", label=L"\lambda_{A,max} > 0, \lambda_{D,max} > 0",msw=msw_val)
     end
     if !isempty(margin_blue)
-        Plots.scatter!(stack(margin_blue.stable,dims=1)[:,1], stack(margin_blue.stable_d,dims=1)[:,1], color="blue", label=L"\lambda_{A,max} < 0, \lambda_{D,max} > 0", msw=msw_val)
+        Plots.scatter!(stack(margin_blue.stable,dims=1)[:,1], stack(margin_blue.stable_d,dims=1)[:,1], color="blue", label=L"\lambda_{A,max} \leq 0, \lambda_{D,max} > 0", msw=msw_val)
     end
     if !isempty(margin_red)
-        Plots.scatter!(stack(margin_red.stable,dims=1)[:,1], stack(margin_red.stable_d,dims=1)[:,1], color="red", label=L"\lambda_{A,max} > 0, \lambda_{D,max} < 0", msw=msw_val)
+        Plots.scatter!(stack(margin_red.stable,dims=1)[:,1], stack(margin_red.stable_d,dims=1)[:,1], color="red", label=L"\lambda_{A,max} > 0, \lambda_{D,max} \leq 0", msw=msw_val)
     end
 
     ylabel!(L"\lambda_{D,max}")
@@ -507,11 +507,10 @@ function show_top_participation_factors(sa::PSID.SmallSignalOutput, mode_idx::In
         cutoff = size(x)[1]
     end
     if plot_on
-        bar(x[1:cutoff,1], x[1:cutoff,2], xrotation=90,color=:grey, legend=false,ylabel="participation factor",size=(600,600),xtickfont=font(9, "Computer Modern"), ytickfontsize=9)
+        bar(x[1:cutoff,1], x[1:cutoff,2], xrotation=90,color=:grey, legend=false,ylabel="participation factor",size=(600,600),xtickfont=font(9, "Computer Modern"), ytickfontsize=9, framestyle=:box)
         # xticks!(collect(1:1:10).-0.5, [L"GFM\ angle", L"GFM\ inner"*"\n"*L"voltage\ error\ (d)", L"SM\ frequency", L"GFM\ inner"*"\n"*L"current\ error\ (d)", L"GFM\ frequency", L"GFM\ PLL\ angle", L"GFM\ inner"*"\n"*L"current\ error\ (q)", L"GFM\ inner"*"\n"*L"voltage\ error\ (q)", L"SM\ transient\ EMF\ (d)", L"GFM\ virtual"*"\n"*L"impedance\ voltage\ (d)"])
 
-        xticks!(collect(1:1:10).-0.5, ["GFM angle", "GFM inner"*"\n"*"voltage error (d)", "SM frequency", "GFM inner"*"\n"*"current error (d)", "GFM frequency", "GFM PLL angle", "GFM inner"*"\n"*"current error (q)", "GFM inner"*"\n"*"voltage error (q)", "SM transient EMF (d)", "GFM virtual"*"\n"*"impedance voltage (d)"])
-    ylabel!(L"\mathrm{Participation\ Factor}")
+
     end
 end
 
@@ -620,14 +619,14 @@ function make_9bus_eig_and_pf_plot(filepath::String, save_fig=false)
     sa1d = small_signal_analysis(sim1d)
     xspan = range(0,0.3,15)
     ymax = maximum(abs.(imag(sa1d.eigenvalues)))
-    plot(xspan,ones(length(xspan)).*-ymax, fillrange=ones(length(xspan)).*ymax, fillalpha=0.3, fillcolor=:grey,primary=false, lc=:white, framestyle=:box)
+    plot(xspan,ones(length(xspan)).*-ymax, fillrange=ones(length(xspan)).*ymax, fillalpha=0.3, fillcolor=:grey,primary=false, lc=:white, framestyle=:box,legendfontsize=12)
     scatter!(real(sa1a.eigenvalues), imag(sa1a.eigenvalues), label=L"\mathrm{static}", alpha=0.8)
     scatter!(real(sa1d.eigenvalues), imag(sa1d.eigenvalues), label=L"\mathrm{dynamic}", alpha=0.8, shape=:utriangle)
     ylabel!(L"\Im \ (\lambda)")
     xlabel!(L"\Re \ (\lambda)")
 
     #add_inset((-0.1,0.1),(-7,7),0.15,0.3,0.4,0.5)
-    add_inset((-1,0.5),(-20,20),0.15,0.3,0.4,0.5)
+    add_inset((-0.2,0.2),(-20,20),0.15,0.3,0.4,0.5)
     if save_fig
         mkpath(filepath*"/eig_comparison_fig")
         savefig(filepath*"/eig_comparison_fig/eig_comparison_blue.png")
@@ -635,6 +634,10 @@ function make_9bus_eig_and_pf_plot(filepath::String, save_fig=false)
     end
     show_top_participation_factors(sa1d,1,true, 10)
     savefig(filepath*"/pf_blue_point_mode_of_interest.png")
+    xticks!(collect(1:1:10).-0.5, ["GFM angle", "GFM inner"*"\n"*"voltage error (d)", "SM frequency", "GFM inner"*"\n"*"current error (d)", "GFM frequency", "GFM PLL angle", "GFM inner"*"\n"*"current error (q)", "GFM inner"*"\n"*"voltage error (q)", "SM transient EMF (d)", "GFM virtual"*"\n"*"impedance voltage (d)"])
+    ylabel!(L"\mathrm{Participation\ Factor}")
+    savefig(filepath*"/pf_blue_point_mode_of_interest_relabeled.png")
+
 end
 
 
@@ -644,9 +647,9 @@ function make_39bus_eig_and_pf_plot(filepath::String, save_fig=false)
     df1, tsim, _, sim1a, sim1d = run_experiment("data_files/IEEE 39 bus.RAW", x[1:2,:], ["30", "32","33"], ["34", "35","36"], ["37", "38", "39", "31"], create_vsm_gfm, create_gfl, dyn_gen_roundrotor30, dyn_gen_roundrotor30, apply_param_update, true, false);
     sa1a = small_signal_analysis(sim1a)
     sa1d = small_signal_analysis(sim1d)
-    xspan = range(0,0.3,15)
+    xspan = range(0,1.0,15)
     ymax = maximum(abs.(imag(sa1d.eigenvalues)))
-    plot(xspan,ones(length(xspan)).*-ymax, fillrange=ones(length(xspan)).*ymax, fillalpha=0.3, fillcolor=:grey,primary=false, lc=:white, framestyle=:box)
+    plot(xspan,ones(length(xspan)).*-ymax, fillrange=ones(length(xspan)).*ymax, fillalpha=0.3, fillcolor=:grey,primary=false, lc=:white, framestyle=:box, legendfontsize=12)
     scatter!(real(sa1a.eigenvalues), imag(sa1a.eigenvalues), label=L"\mathrm{static}", alpha=0.8)
     scatter!(real(sa1d.eigenvalues), imag(sa1d.eigenvalues), label=L"\mathrm{dynamic}", alpha=0.8, shape=:utriangle)
     ylabel!(L"\Im \ (\lambda)")

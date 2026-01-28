@@ -45,7 +45,7 @@ params = generate_39bus_parameter_dataframe()
 df, tsim, filepath = run_experiment("data_files/IEEE 39 bus.RAW", params, ["30", "32","33"], ["34", "35","36"], ["37", "38", "39", "31"], create_vsm_gfm, create_gfl, dyn_gen_roundrotor30, dyn_gen_roundrotor30, apply_param_update, false, true,"_og");
 
 filepath = "IEEE 39 bus_2026-01-16T14:58:10.210_og"
-generate_A_v_D_eig_full_color(filepath, true)
+generate_A_v_D_eig_full_color(filepath, true,(-0.5,0.5), (-0.5,0.5))
 generate_parameter_plots(filepath, true)
 generate_parameter_plots_damping(filepath,true)
 make_39bus_eig_and_pf_plot(filepath,true)
