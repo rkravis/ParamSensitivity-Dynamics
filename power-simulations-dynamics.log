@@ -1,0 +1,41 @@
+┌ Info: 2026-01-28T12:33:15.630 [28358:1]: Pre-Initializing Simulation States
+└ @ PowerSimulationsDynamics /Users/ruthkravis/.julia/packages/PowerSimulationsDynamics/b6f1m/src/base/simulation.jl:265
+┌ Info: 2026-01-28T12:33:15.631 [28358:1]: The TrustRegionACPowerFlow solver converged after 4 iterations.
+└ @ PowerFlows /Users/ruthkravis/.julia/packages/PowerFlows/Ilrf1/src/powerflow_method.jl:314
+┌ Info: 2026-01-28T12:33:15.631 [28358:1]: PowerFlow solve converged, the results have been stored in the system
+└ @ PowerFlows /Users/ruthkravis/.julia/packages/PowerFlows/Ilrf1/src/solve_ac_powerflow.jl:62
+┌ Info: 2026-01-28T12:33:15.631 [28358:1]: Residual from initial guess: max = 8.1601392309949e-11 at 64, total = 8.244303588409182e-11
+└ @ PowerSimulationsDynamics /Users/ruthkravis/.julia/packages/PowerSimulationsDynamics/b6f1m/src/base/nlsolve_wrapper.jl:115
+┌ Info: 2026-01-28T12:33:15.632 [28358:1]: Initialization non-linear solve succeeded with a tolerance of 1.0e-9 using solver trust_region. Saving solution.
+└ @ PowerSimulationsDynamics /Users/ruthkravis/.julia/packages/PowerSimulationsDynamics/b6f1m/src/base/nlsolve_wrapper.jl:82
+┌ Info: 2026-01-28T12:33:15.632 [28358:1]: Attaching Perturbations
+└ @ PowerSimulationsDynamics /Users/ruthkravis/.julia/packages/PowerSimulationsDynamics/b6f1m/src/base/simulation.jl:299
+┌ Info: 2026-01-28T12:33:15.632 [28358:1]: Simulations status = BUILT
+└ @ PowerSimulationsDynamics /Users/ruthkravis/.julia/packages/PowerSimulationsDynamics/b6f1m/src/base/simulation.jl:462
+┌ Info: 2026-01-28T12:33:15.632 [28358:1]: 
+│ ──────────────────────────────────────────────────────────────────────────────────────
+│                                                            Time          Allocations  
+│                                                      ───────────────   ───────────────
+│                    Total measured:                       2.36ms            1.23MiB    
+│ 
+│ Section                                      ncalls     time    %tot     alloc    %tot
+│ ──────────────────────────────────────────────────────────────────────────────────────
+│ Build Simulation                                  1   2.35ms  100.0%   1.23MiB  100.0%
+│   Build Simulation Inputs                         1    589μs   25.0%    112KiB    8.9%
+│     Wrap Branches                                 1   48.3μs    2.1%   10.1KiB    0.8%
+│     Wrap Dynamic Injectors                        1    239μs   10.2%   53.8KiB    4.3%
+│     Calculate MM, DAE_vector, Total Shunts        1   41.2μs    1.7%   8.17KiB    0.6%
+│     Wrap Static Injectors                         1   46.8μs    2.0%   5.98KiB    0.5%
+│   Pre-initialization                              1   1.05ms   44.7%    347KiB   27.5%
+│     Power Flow solution                           1    539μs   22.9%    118KiB    9.4%
+│     Initialize Static Injectors                   1   1.00μs    0.0%     64.0B    0.0%
+│     Initialize Dynamic Injectors                  1    393μs   16.7%    213KiB   16.9%
+│     Initialize Dynamic Branches                   1   14.2μs    0.6%   2.69KiB    0.2%
+│   Calculate Jacobian                              1    204μs    8.7%    357KiB   28.3%
+│   Make Model Function                             1   4.17μs    0.2%   1.73KiB    0.1%
+│   Initial Condition NLsolve refinement            1    264μs   11.2%    390KiB   31.0%
+│   Build Perturbations                             1   41.8μs    1.8%   11.4KiB    0.9%
+│   Make DiffEq Problem                             1    172μs    7.3%   27.2KiB    2.2%
+│ ──────────────────────────────────────────────────────────────────────────────────────
+│ 
+└ @ PowerSimulationsDynamics /Users/ruthkravis/.julia/packages/PowerSimulationsDynamics/b6f1m/src/base/simulation.jl:487
