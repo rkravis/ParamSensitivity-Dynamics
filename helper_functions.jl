@@ -5,7 +5,7 @@ using PowerSystems
 const PSY = PowerSystems
 const PSID = PowerSimulationsDynamics
 
-## Simulation functions 
+# Simulation functions 
 
 function add_generator_directly(sys, number, bus_name, Pset, Qset, device_function)
     bus = get_component(ACBus, sys, string(bus_name))
@@ -75,6 +75,20 @@ function apply_param_update(sys,df_row,load_dict, line_dict, line_update_fcn, gf
     inv_share = df_row.inv_share
     load_scale = df_row.load_s
     line_scale = df_row.line_s
+    kp_pll = df_row.kp_pll 
+    ki_pll = df_row.ki_pll 
+
+    # if df has gfl_kpq and gfl_kiq, use them for reactive power control
+    if hasproperty(df_row, :gfl_kpq)
+        kp_q = df_row.gfl_kpq
+    else
+        kp_q = kp
+    end
+    if hasproperty(df_row, :gfl_kiq)
+        ki_q = df_row.gfl_kiq
+    else
+        ki_q = ki
+    end
 
     # Scale line using function 
     line_update_fcn(sys, line_dict, line_scale)
@@ -122,14 +136,16 @@ function apply_param_update(sys,df_row,load_dict, line_dict, line_update_fcn, gf
             g.reactive_power = gfl_eta*total_q/num_GFL/g.base_power;
             g.dynamic_injector.outer_control.active_power_control.Ki_p = ki; 
             g.dynamic_injector.outer_control.active_power_control.Kp_p = kp;
-            g.dynamic_injector.outer_control.reactive_power_control.Ki_q = ki; 
-            g.dynamic_injector.outer_control.reactive_power_control.Kp_q = kp; 
+            g.dynamic_injector.outer_control.reactive_power_control.Ki_q = ki_q; 
+            g.dynamic_injector.outer_control.reactive_power_control.Kp_q = kp_q;
             g.dynamic_injector.filter.lf = lf 
             g.dynamic_injector.filter.cf = cf 
             g.dynamic_injector.inner_control.kpc = kpc 
             g.dynamic_injector.inner_control.kic = kic 
             g.dynamic_injector.outer_control.active_power_control.ωz = wz
             g.dynamic_injector.outer_control.reactive_power_control.ωf = wz
+            g.dynamic_injector.freq_estimator.kp_pll = kp_pll 
+            g.dynamic_injector.freq_estimator.ki_pll = ki_pll 
         elseif g.bus.name in sm_buses
             g.active_power = sm_eta*total_p/num_SM/g.base_power;
             g.reactive_power = sm_eta*total_q/num_SM/g.base_power;
@@ -139,7 +155,7 @@ end
 
 function apply_param_update_droop(sys, df_row, load_dict, line_dict, line_update_fcn, gfm_buses, gfl_buses, sm_buses)
 
-    Rp = df_row.gfm_rp 
+    Rp = df_row.gfm_kp 
     kq = df_row.gfm_kq 
     cf = df_row.cf
     lf = df_row.lf
@@ -154,6 +170,8 @@ function apply_param_update_droop(sys, df_row, load_dict, line_dict, line_update
     inv_share = df_row.inv_share
     load_scale = df_row.load_s
     line_scale = df_row.line_s
+    kp_pll = df_row.kp_pll 
+    ki_pll = df_row.ki_pll 
 
     # Scale line using function 
     line_update_fcn(sys, line_dict, line_scale)
@@ -208,6 +226,8 @@ function apply_param_update_droop(sys, df_row, load_dict, line_dict, line_update
             g.dynamic_injector.inner_control.kic = kic 
             g.dynamic_injector.outer_control.active_power_control.ωz = wz
             g.dynamic_injector.outer_control.reactive_power_control.ωf = wz
+            g.dynamic_injector.freq_estimator.kp_pll = kp_pll 
+            g.dynamic_injector.freq_estimator.ki_pll = ki_pll 
         elseif g.bus.name in sm_buses
             g.active_power = sm_eta*total_p/num_SM/g.base_power;
             g.reactive_power = sm_eta*total_q/num_SM/g.base_power;
@@ -272,7 +292,7 @@ function get_small_signal_results(filename, param_df, gfm_buses, gfl_buses, sm_b
                 MassMatrixModel, #Type of model used
                 sys_a, #system
                 pwd(), #folder to output results
-                (0.0,1.0), #time span
+                (0.0,0.2), #time span
                 perturbation_a #, #Type of perturbation
                 );
         
@@ -281,50 +301,58 @@ function get_small_signal_results(filename, param_df, gfm_buses, gfl_buses, sm_b
                 MassMatrixModel, #Type of model used
                 sys_d, #system
                 pwd(), #folder to output results
-                (0.0,1.0), #time span
+                (0.0,0.2), #time span
                 perturbation_d #, #Type of perturbation
                 );
 
         # Update df with results 
         # static model 
         ss_a = small_signal_analysis(sim_a);
-        ls_eig_a, ls_eig_a_idx = return_least_stable_nonzero_eig(ss_a, sim_a.status)
-        df[n,:stable] = (ls_eig_a.re, ls_eig_a.im)
         df[n,:status] = string(sim_a.status);
-        df[n,:damping] = -100*real(ls_eig_a)/abs(ls_eig_a);
+        if sim_a.status != PSID.BUILD_FAILED
+            ls_eig_a, ls_eig_a_idx = return_least_stable_nonzero_eig(ss_a, sim_a.status)
+            df[n,:stable] = (ls_eig_a.re, ls_eig_a.im)
+            df[n,:damping] = -100*real(ls_eig_a)/abs(ls_eig_a);
+        end
 
         # dynamic model 
         ss_d = small_signal_analysis(sim_d);
-        ls_eig_d, ls_eig_d_idx = return_least_stable_nonzero_eig(ss_d, sim_d.status)
-        df[n,:stable_d] = (ls_eig_d.re, ls_eig_d.im)
         df[n,:status_d] = string(sim_d.status);
-        df[n,:damping_d] = -100*real(ls_eig_d)/abs(ls_eig_d);
+        if sim_d.status != PSID.BUILD_FAILED
+            ls_eig_d, ls_eig_d_idx = return_least_stable_nonzero_eig(ss_d, sim_d.status)
+            df[n,:stable_d] = (ls_eig_d.re, ls_eig_d.im)
+            df[n,:damping_d] = -100*real(ls_eig_d)/abs(ls_eig_d);
+        end
 
         # construct diff metric 
-        df[n,:diff] = real(ls_eig_a) - real(ls_eig_d)
-        # save sim object 
-        last_sim_a = sim_a 
-        last_sim_d = sim_d
+        if df[n,:status] != PSID.BUILD_FAILED && df[n,:status_d] != PSID.BUILD_FAILED
+            ls_eig_a, ls_eig_a_idx = return_least_stable_nonzero_eig(ss_a, sim_a.status)
+            ls_eig_d, ls_eig_d_idx = return_least_stable_nonzero_eig(ss_d, sim_d.status)
+            df[n,:diff] = real(ls_eig_a) - real(ls_eig_d)
+            # save sim object 
+            last_sim_a = sim_a 
+            last_sim_d = sim_d
 
-        # find least damped mode in static and dynamic model 
-        df[n,:least_damped_a] = find_least_damped_eigenvalue(ss_a.eigenvalues)
-        df[n,:least_damped_d] = find_least_damped_eigenvalue(ss_d.eigenvalues)
-        
-        # match eigenvalues for blue / red points 
-        match_up_to = 30 # top X eigenvalues to match against 
-        if df[n,:stable][1] <= 0 && df[n,:stable_d][1] > 0 # blue point 
-            # find the match for the eigenvalue 
-            closest_eig, idx = find_closest_eigenvalue(ss_a, ls_eig_d, match_up_to)
-            # retrieve damping ratio for that eigenvalue 
-            df[n,:blue_corresponding_a] = (closest_eig.re, closest_eig.im)
+            # find least damped mode in static and dynamic model 
+            df[n,:least_damped_a] = find_least_damped_eigenvalue(ss_a.eigenvalues)
+            df[n,:least_damped_d] = find_least_damped_eigenvalue(ss_d.eigenvalues)
             
-        end
-        if df[n,:stable][1] > 0 && df[n,:stable_d][1] <= 0 # red point 
-            # find the match for the eigenvalue 
-            match_up_to = 30
-            closest_eig, idx = find_closest_eigenvalue(ss_d, ls_eig_a, match_up_to)
-            # retrieve damping ratio for that eigenvalue 
-            df[n,:red_corresponding_d] = (closest_eig.re, closest_eig.im)
+            # match eigenvalues for blue / red points 
+            match_up_to = 30 # top X eigenvalues to match against 
+            if df[n,:stable][1] <= 0 && df[n,:stable_d][1] > 0 # blue point 
+                # find the match for the eigenvalue 
+                closest_eig, idx = find_closest_eigenvalue(ss_a, ls_eig_d, match_up_to)
+                # retrieve damping ratio for that eigenvalue 
+                df[n,:blue_corresponding_a] = (closest_eig.re, closest_eig.im)
+                
+            end
+            if df[n,:stable][1] > 0 && df[n,:stable_d][1] <= 0 # red point 
+                # find the match for the eigenvalue 
+                match_up_to = 30
+                closest_eig, idx = find_closest_eigenvalue(ss_d, ls_eig_a, match_up_to)
+                # retrieve damping ratio for that eigenvalue 
+                df[n,:red_corresponding_d] = (closest_eig.re, closest_eig.im)
+            end
         end
     end
     end_time = time();
@@ -490,6 +518,7 @@ function generate_A_v_D_eig_full_color(filepath::String, save_fig=false, xspan=(
     end
 end
 
+
 function add_inset(xspan::Tuple, yspan::Tuple,xloc=0.65, yloc=0.45,xsize=0.3,ysize=0.45)
     lens!([xspan[1], xspan[2]], [yspan[1], yspan[2]];
     inset=(1, bbox(xloc, yloc, xsize, ysize)), # bbox(x, y, width, height) where numbers are % of parent 
@@ -526,7 +555,7 @@ function make_damping_plot(filepath::String, save_fig=false)
     end
 end
 
-function average_parameters(x::DataFrame, cols_to_select::Vector)
+function average__s(x::DataFrame, cols_to_select::Vector)
     # Averages parameters per column (over rows) for dataframe over selected columns 
     y = x[:,cols_to_select]
     col_names = names(y)
@@ -542,23 +571,29 @@ function generate_parameter_plots(filepath::String, save_fig=false)
         mkpath(filepath*"/parameter_sensitivity_plots")
     end
     df = load_from_folder(filepath)
-    x = df#vcat(get_edge_blue(df), get_edge_red(df), get_stable(df))
-    all_param_names = names(x)[1:16]
-    n_df = size(x)[1]
-    print(n_df)
+    x = vcat(get_edge_blue(df), get_edge_red(df), get_stable(df))
+    all_param_names = names(x)[1:32]
+    #n_df = size(x)[1]
+    #print(n_df)
     for c in all_param_names
         # sort by all the other columns, plot points N at a time, moving through the df, where N is the number of unique values of the c parameter 
         n_p = length(unique(x[!,c])) # number of x values
         if n_p != 1 
-            remaining = setdiff(all_param_names, [c])
-            sort!(x, remaining) # sort in place 
             Plots.plot(framestyle=:box)
-            # iterate through in increments of n_p 
-            for i in 1:n_p:n_df-n_p-1
-                if unique(x[i:i+n_p-1,:quadrant]) != ["orange"] # eliminate lines that are unstable to unstable 
-                    Plots.plot!(x[i:i+n_p-1, c], x[i:i+n_p-1,:diff], lw=0.3, markershape=:cross, markercolor=x[i:i+n_p-1, :quadrant], color="gray", alpha=0.4,legend=false)
-                end
-            end
+            Plots.scatter!(x[:,c],x[:,:diff],markercolor=x[:,:quadrant],markershape=:cross,lw=0.3,alpha=0.4)
+            # # plot
+            # remaining = setdiff(all_param_names, [c])
+            # Plots.plot!(x[i:i+n_p-1, c], x[i:i+n_p-1,:diff], lw=0.3, markershape=:cross, markercolor=x[i:i+n_p-1, :quadrant], color="gray", alpha=0.4,legend=false)
+
+            # remaining = setdiff(all_param_names, [c])
+            # sort!(x, remaining) # sort in place 
+            # Plots.plot(framestyle=:box)
+            # # iterate through in increments of n_p 
+            # for i in 1:n_p:n_df-n_p-1
+            #     if unique(x[i:i+n_p-1,:quadrant]) != ["orange"] # eliminate lines that are unstable to unstable 
+            #         Plots.plot!(x[i:i+n_p-1, c], x[i:i+n_p-1,:diff], lw=0.3, markershape=:cross, markercolor=x[i:i+n_p-1, :quadrant], color="gray", alpha=0.4,legend=false)
+            #     end
+            # end
 
             xlabel!(label_dict[c])
 
@@ -587,15 +622,19 @@ function generate_parameter_plots_damping(filepath::String, save_fig=false)
     for c in all_param_names
         n_p = length(unique(x[!,c])) # number of x values
         if n_p != 1 
-            remaining = setdiff(all_param_names, [c])
-            sort!(x, remaining) # sort in place 
+
             Plots.plot(framestyle=:box)
-            # iterate through in increments of n_p 
-            for i in 1:n_p:n_df-n_p-1
-                if unique(x[i:i+n_p-1,:quadrant]) != ["orange"] # eliminate lines that are unstable to unstable 
-                    Plots.plot!(x[i:i+n_p-1, c], damping_ratio(x[i:i+n_p-1,:least_damped_a]), lw=0.3, markershape=:cross, markercolor=x[i:i+n_p-1, :quadrant], color="gray", alpha=0.4,primary=false)
-                end
-            end
+            Plots.scatter!(x[:,c],damping_ratio(x[:,:least_damped_a]),markercolor=x[:,:quadrant],markershape=:cross,lw=0.3,alpha=0.4,primary=false)
+
+            # remaining = setdiff(all_param_names, [c])
+            # sort!(x, remaining) # sort in place 
+            # Plots.plot(framestyle=:box)
+            # # iterate through in increments of n_p 
+            # for i in 1:n_p:n_df-n_p-1
+            #     if unique(x[i:i+n_p-1,:quadrant]) != ["orange"] # eliminate lines that are unstable to unstable 
+            #         Plots.plot!(x[i:i+n_p-1, c], damping_ratio(x[i:i+n_p-1,:least_damped_a]), lw=0.3, markershape=:cross, markercolor=x[i:i+n_p-1, :quadrant], color="gray", alpha=0.4,primary=false)
+            #     end
+            # end
             xlabel!(label_dict[c])
             ylabel!(L"\zeta_{min,static}\ (\%)")
             hline!([3],color=:pink,width=2,label="3%")
@@ -609,6 +648,66 @@ function generate_parameter_plots_damping(filepath::String, save_fig=false)
             end
         end
     end
+end
+
+
+
+# df = load_from_folder(filepath)
+
+
+# data1 = get_edge_blue(df)
+# data3 = get_stable(df)
+
+# data1 = damping_ratio(get_edge_blue(df).least_damped_a)
+# data3 = damping_ratio(get_stable(df).least_damped_a)
+
+# # Combine into a matrix (each column is a category)
+# data_matrix = hcat(data1, data3)
+
+function make_stacked_histogram(filepath::String, save_fig=false)
+
+    df = load_from_folder(filepath)
+    # handle get_ functions in case they are empty
+
+    data1 = !isempty(get_edge_blue(df)) ? get_edge_blue(df) : []
+    data2 = !isempty(get_stable(df)) ? get_stable(df) : []
+    data3 = !isempty(get_edge_red(df)) ? get_edge_red(df) : []
+    data4 = !isempty(get_unstable(df)) ? get_unstable(df) : []
+    list_of_data = [data1, data2, data3, data4]
+    group_colors_ = [:royalblue :seagreen :crimson :gold]
+    group_labels_ = ["Blue" "Green" "Red" "Yellow"]
+    data_groups = [] 
+    group_colors = []
+    group_labels = []
+    # Combine them into a single vector of vectors
+    for i in 1:4
+        if !isempty(list_of_data[i])
+            push!(data_groups, damping_ratio(list_of_data[i].least_damped_a))
+            push!(group_colors, group_colors_[i])
+            push!(group_labels, group_labels_[i])
+        end
+    end
+
+    group_colors = reshape(group_colors, 1, length(group_colors)) # reshape to row vector
+    group_labels = reshape(group_labels, 1, length(group_labels)) # reshape to row vector
+            
+    plot()
+    histogram(data_groups,
+        stacked = true,
+        color = group_colors,
+        label = group_labels,
+        bins = 35,
+        alpha = 0.4,
+        title = "",
+        xlabel = "Least damped mode damping ratio (%)",
+        ylabel = "Count"
+    )
+    # save 
+    if save_fig
+        savefig(filepath*"/histogram_fig.png")
+    end
+    # close figure
+
 end
 
 function make_9bus_eig_and_pf_plot(filepath::String, save_fig=false)
@@ -641,10 +740,13 @@ function make_9bus_eig_and_pf_plot(filepath::String, save_fig=false)
 end
 
 
-function make_39bus_eig_and_pf_plot(filepath::String, save_fig=false)
+function make_39bus_eig_and_pf_plot(filepath::String, save_fig=false, xlim=(-1,1), ylim=(-25,25))
     df = load_from_folder(filepath)
     x = get_edge_blue(df)
-    df1, tsim, _, sim1a, sim1d = run_experiment("data_files/IEEE 39 bus.RAW", x[1:2,:], ["30", "32","33"], ["34", "35","36"], ["37", "38", "39", "31"], create_vsm_gfm, create_gfl, dyn_gen_roundrotor30, dyn_gen_roundrotor30, apply_param_update, true, false);
+    # extract locations from output file 
+    info = JSON.parsefile(filepath*"/output.json")
+
+    df1, tsim, _, sim1a, sim1d = run_experiment(info["filename"], x[1:2,:], info["gfm_buses"], info["gfl_buses"], info["sm_buses"], getfield(Main, Symbol(info["gfm_fcn"])), getfield(Main, Symbol(info["gfl_fcn"])), getfield(Main, Symbol(info["sm_a_fcn"])), getfield(Main, Symbol(info["sm_d_fcn"])), apply_param_update, true, false);
     sa1a = small_signal_analysis(sim1a)
     sa1d = small_signal_analysis(sim1d)
     xspan = range(0,1.0,15)
@@ -655,10 +757,8 @@ function make_39bus_eig_and_pf_plot(filepath::String, save_fig=false)
     ylabel!(L"\Im \ (\lambda)")
     xlabel!(L"\Re \ (\lambda)")
 
-    #add_inset((-0.1,0.1),(-7,7),0.15,0.3,0.4,0.5)
-    #add_inset((-1,1),(-30,30),0.15,0.3,0.4,0.5)
-    xlims!(-1,1)
-    ylims!(-25,25)
+    xlims!(xlim[1],xlim[2])
+    ylims!(ylim[1],ylim[2])
     annotate_box(0,-20,0.8,8)
     annotate_box(0,20,0.8,8)
     
@@ -682,134 +782,6 @@ function annotate_box(x,y,width,height,color=:red)
     plot!([xub,xub], [ylb, yub], color=color,primary=false)
 end
 
-
-## Parameter generation functions 
-function generate_39bus_parameter_dataframe() 
-
-    #GFM VSM outer loop 
-    gfm_kq_range = [0.01, 0.4]
-    gfm_Ta_range = [0.5, 10]
-    gfm_kd_range = [10, 400]
-
-    # GFM inner voltage loop 
-    #kpv_range = collect([0.59, 1.0])
-    kpv = 0.59 
-    v_loop_range = collect([0.001, 0.1])
-    #kiv_range = collect([400,736])
-
-    # GFM/GFL inner current loop
-    kpc = 0.74
-    i_loop_range = [0.1, 0.01]
-
-    # GFL parameters - outer loop 
-    kp_range = [0.59, 2]
-    ki_range = [7.36, 20]
-    wz_range = [0.1*2*pi*60, 2*pi*60]
-
-    # Inverter filter parameters 
-    cf = [0.074]
-    lf = [0.08]
-
-    # System parameters 
-    line_scale_range = [1.0 1.2]
-    inverter_share_range = [0.4 0.8]
-    gfm_share_range = [0.5 1.0]
-    load_scale_range = [0.8 1.0]
-
-    col_names = ["line_s", "load_s", "gfm_Ta", "gfm_kd", "gfm_kq", "gfm_kpv", "gfm_kiv", "gfm_kpc", "gfm_kic", "gfl_kpp", "gfl_kip", "cf", "lf", "wz", "inv_share", "gfm_share"]
-
-    df = DataFrame([name => [] for name in col_names])
-
-    foreach(x -> push!(df, x), Iterators.product(line_scale_range, load_scale_range, gfm_Ta_range, gfm_kd_range, gfm_kq_range, kpv, kpv./v_loop_range, kpc, kpc./i_loop_range, kp_range, ki_range, cf, lf, wz_range,inverter_share_range, gfm_share_range))
-
-    return df 
-end 
-
-function generate_9bus_parameter_dataframe() 
-    
-    #GFM VSM outer loop 
-    gfm_kq_range = [0.01, 0.4]
-    gfm_Ta_range = [0.5, 10]
-    gfm_kd_range = [10, 400]
-
-    # GFM inner voltage loop 
-    #kpv_range = collect([0.59, 1.0])
-    kpv = 0.59 
-    v_loop_range = collect([0.001, 0.1])
-    #kiv_range = collect([400,736])
-
-    # GFM/GFL inner current loop
-    kpc = 0.74
-    i_loop_range = [0.1, 0.01]
-
-    # GFL parameters - outer loop 
-    kp_range = [0.59, 2]
-    ki_range = [7.36, 20]
-    wz_range = [0.1*2*pi*60, 2*pi*60]
-
-    # Inverter filter parameters 
-    cf = [0.5, 1.5]*0.074
-    #cf = [0.074]
-    lf = [0.5, 1.5]*0.08
-    #lf = [0.08]
-
-    # System parameters 
-    line_scale_range = [0.8, 1.0]
-    inverter_share_range = [0.5, 0.8]
-    gfm_share_range = [0.5, 1.0]
-    load_scale_range = [0.8, 1.0]
-
-    col_names = ["line_s", "load_s", "gfm_Ta", "gfm_kd", "gfm_kq", "gfm_kpv", "gfm_kiv", "gfm_kpc", "gfm_kic", "gfl_kpp", "gfl_kip", "cf", "lf", "wz", "inv_share", "gfm_share"]
-
-    df = DataFrame([name => [] for name in col_names])
-
-    foreach(x -> push!(df, x), Iterators.product(line_scale_range, load_scale_range, gfm_Ta_range, gfm_kd_range, gfm_kq_range, kpv, kpv./v_loop_range, kpc, kpc./i_loop_range, kp_range, ki_range, cf, lf, wz_range, inverter_share_range, gfm_share_range))
-
-    return df 
-end
-
-function generate_9bus_droop_parameter_dataframe()
-
-    #GFM droop outer loop 
-    gfm_kq_range = [0.01, 0.4] # Q-V droop 
-    gfm_rp_range = [0.02, 0.05] # P-f droop 
-
-    # GFM inner voltage loop 
-    #kpv_range = collect([0.59, 1.0])
-    kpv = 0.59 
-    v_loop_range = collect([0.001, 0.1])
-    #kiv_range = collect([400,736])
-
-    # GFM/GFL inner current loop
-    kpc = 0.74
-    i_loop_range = [0.1, 0.01]
-
-    # GFL parameters - outer loop 
-    kp_range = [0.59, 2]
-    ki_range = [7.36, 20]
-    wz_range = [0.1*2*pi*60, 2*pi*60]
-
-    # Inverter filter parameters 
-    #cf = [0.5, 1.5]*0.074
-    cf = [0.074]
-    #lf = [0.5, 1.5]*0.08
-    lf = [0.08]
-
-    # System parameters 
-    line_scale_range = [0.8, 1.0]
-    inverter_share_range = [0.5, 0.8]
-    gfm_share_range = [0.5, 1.0]
-    load_scale_range = [0.8, 1.0]
-
-    col_names = ["line_s", "load_s", "gfm_rp", "gfm_kq", "gfm_kpv", "gfm_kiv", "gfm_kpc", "gfm_kic", "gfl_kpp", "gfl_kip", "cf", "lf", "wz", "inv_share", "gfm_share"]
-
-    df = DataFrame([name => [] for name in col_names])
-
-    foreach(x -> push!(df, x), Iterators.product(line_scale_range, load_scale_range, gfm_rp_range, gfm_kq_range, kpv, kpv./v_loop_range, kpc, kpc./i_loop_range, kp_range, ki_range, cf, lf, wz_range, inverter_share_range, gfm_share_range))
-
-    return df 
-end
-
 # Plotting 
 label_dict = Dict(
     "gfm_kiv"=> L"k_{iv}",
@@ -828,9 +800,21 @@ label_dict = Dict(
     "wz" => L"\omega_z",
     "inv_share" => L"IBR\ share",
     "gfm_share" => L"GFM\ share",
-    "gfm_rp" => L"R_p"
-)
-
+    "gfm_rp" => L"R_p",
+    "gfm_kp" => L"k_p",
+    "kp_pll" => L"k_{ppll}",
+    "ki_pll" => L"k_{ipll}",
+    "kpc_gfl" => L"k_{pc,gfl}",
+    "kic_gfl" => L"k_{ic,gfl}",
+    "gfl_kpq" => L"k_{pq}",
+    "gfl_kiq" => L"k_{iq}",
+    "gfl_lf" => L"l_f",
+    "gfl_cf" => L"c_f",
+    "gfl_rf" => L"r_f",
+    "gfl_wz" => L"\omega_z",
+    "gfm_wf" => L"\omega_f",
+    "gfl_kpc" => L"k_{pc,gfl}",
+    "gfl_kic" => L"k_{ic,gfl}")
 
 pf_label_dict = Dict(
 
@@ -949,4 +933,5 @@ function annotate_status(x)
         end 
     end 
 end 
+
 

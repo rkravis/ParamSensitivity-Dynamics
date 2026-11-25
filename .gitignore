@@ -1,3 +1,7 @@
 /.vscode
 power-simulations-dynamics.log
 
+data_files/
+results/
+images/
+
